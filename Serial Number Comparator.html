@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827;
+            color: #f3f4f6;
+        }
+        .status-card {
+            transition: all 0.3s ease;
+        }
+        .found {
+            background-color: #10B981 !important;
+            color: white;
+            transform: scale(1.05);
+        }
+        .not-found {
+            background-color: #EF4444 !important;
+            color: white;
+            transform: scale(1.05);
+        }
+        .already-found {
+            background-color: #F59E0B !important;
+            color: white;
+            transform: scale(1.05);
+        }
+        .animated-list-item {
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        textarea, input {
+            background-color: #374151;
+            border: 1px solid #4B5563;
+            color: #F3F4F6;
+        }
+        textarea:focus, input:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px #1E40AF;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div id="toast" class="fixed top-5 right-5 bg-blue-600 text-white py-2 px-5 rounded-lg shadow-lg opacity-0 transform translate-y-2 transition-all duration-300 z-50">
+        <p id="toastMessage"></p>
+    </div>
+
+    <div class="w-full max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white">Comparator</h1>
+            <p class="text-lg text-gray-400 mt-2">List of the Lost Serial Numbers.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Coluna de Entrada e Status -->
+            <div class="space-y-6">
+                <div>
+                    <label for="missingSerials" class="block text-sm font-medium text-gray-300 mb-2">1. Lost SN</label>
+                    <textarea id="missingSerials" rows="6" class="w-full p-3 rounded-md shadow-sm">121883100019
+121883100011
+121902040134
+121883100024
+121883100022
+121883100012
+121883100030
+121883100021
+121883100018
+121902040133
+121902040037
+121883100025</textarea>
+                </div>
+                <div>
+                    <label for="scannedSerial" class="block text-sm font-medium text-gray-300 mb-2">2. Scan the SN here</label>
+                    <input type="text" id="scannedSerial" class="w-full p-3 rounded-md shadow-sm text-lg" placeholder="Awaiting the scan....">
+                </div>
+                <div id="statusCard" class="status-card p-6 text-center rounded-lg shadow-lg bg-gray-800">
+                    <h2 id="statusTitle" class="text-3xl font-bold">Awaiting verification</h2>
+                    <p id="statusMessage" class="text-gray-400 mt-2">The result will be here.</p>
+                </div>
+            </div>
+
+            <!-- Coluna de Resultados -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col">
+                <h3 class="text-2xl font-semibold text-white border-b border-gray-700 pb-3 mb-4">Found Items</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-lg text-gray-300">Progress:</span>
+                    <span id="foundCounter" class="text-2xl font-bold bg-blue-600 text-white px-4 py-1 rounded-full">0 / 12</span>
+                </div>
+                <div class="flex-grow h-64 overflow-y-auto custom-scrollbar pr-2">
+                    <ul id="foundList" class="space-y-2"></ul>
+                </div>
+            </div>
+
+            <!-- Coluna de Histórico -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col">
+                <h3 class="text-2xl font-semibold text-white border-b border-gray-700 pb-3 mb-4">Scan Hystory</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-lg text-gray-300">Total Scanned:</span>
+                    <span id="scannedCounter" class="text-2xl font-bold bg-gray-600 text-white px-4 py-1 rounded-full">0</span>
+                </div>
+                <div class="flex-grow h-64 overflow-y-auto custom-scrollbar pr-2">
+                    <ul id="scanHistoryList" class="space-y-2"></ul>
+                </div>
+                <div class="mt-4">
+                    <button id="copyHistoryBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Copy the history</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const missingSerialsEl = document.getElementById('missingSerials');
+        const scannedSerialEl = document.getElementById('scannedSerial');
+        const statusCardEl = document.getElementById('statusCard');
+        const statusTitleEl = document.getElementById('statusTitle');
+        const statusMessageEl = document.getElementById('statusMessage');
+        const foundCounterEl = document.getElementById('foundCounter');
+        const foundListEl = document.getElementById('foundList');
+        const scannedCounterEl = document.getElementById('scannedCounter');
+        const scanHistoryListEl = document.getElementById('scanHistoryList');
+        const copyHistoryBtn = document.getElementById('copyHistoryBtn');
+
+        let missingSet = new Set();
+        let foundSet = new Set();
+        let totalMissing = 0;
+        let scanHistory = [];
+
+        const synth = new Tone.Synth().toDestination();
+        const playSuccessSound = () => synth.triggerAttackRelease("C5", "8n", Tone.now());
+        const playErrorSound = () => synth.triggerAttackRelease("C3", "8n", Tone.now());
+        const playWarningSound = () => { const now = Tone.now(); synth.triggerAttackRelease("E4", "16n", now); synth.triggerAttackRelease("E4", "16n", now + 0.1); };
+
+        function updateMissingList() {
+            const serials = missingSerialsEl.value.trim().split('\n').filter(Boolean);
+            missingSet = new Set(serials.map(s => s.trim()));
+            totalMissing = missingSet.size;
+            updateCounter();
+            scannedSerialEl.focus();
+        }
+        
+        scannedSerialEl.addEventListener('change', () => {
+            const scannedValue = scannedSerialEl.value.trim();
+            if (scannedValue) {
+                checkSerial(scannedValue);
+            }
+        });
+
+        function checkSerial(serial) {
+            resetStatus();
+            let status = 'not-found';
+            
+            setTimeout(() => {
+                if (missingSet.has(serial)) {
+                    if (foundSet.has(serial)) {
+                        status = 'already-found';
+                        statusCardEl.classList.add('already-found');
+                        statusTitleEl.textContent = 'Already Found';
+                        statusMessageEl.textContent = `O item ${serial} já foi localizado.`;
+                        playWarningSound();
+                    } else {
+                        status = 'found';
+                        statusCardEl.classList.add('found');
+                        statusTitleEl.textContent = 'FOUND!';
+                        statusMessageEl.textContent = `Excelente! O item ${serial} está na lista.`;
+                        foundSet.add(serial);
+                        addFoundToList(serial);
+                        updateCounter();
+                        playSuccessSound();
+                    }
+                } else {
+                    statusCardEl.classList.add('not-found');
+                    statusTitleEl.textContent = 'NOT FOUND';
+                    statusMessageEl.textContent = `O item ${serial} não corresponde a nenhum item perdido.`;
+                    playErrorSound();
+                }
+
+                scanHistory.push({ serial, status });
+                addScanToHistoryList(serial, status);
+                updateScannedCounter();
+                
+                scannedSerialEl.value = '';
+                scannedSerialEl.focus();
+
+            }, 100);
+        }
+
+        function addFoundToList(serial) {
+            const li = document.createElement('li');
+            li.className = 'bg-gray-700 p-3 rounded-md text-sm text-gray-200 flex justify-between items-center animated-list-item';
+            li.textContent = serial;
+            const checkmark = document.createElement('span');
+            checkmark.innerHTML = '&#10003;';
+            checkmark.className = 'text-green-400 font-bold';
+            li.appendChild(checkmark);
+            foundListEl.prepend(li);
+        }
+
+        function addScanToHistoryList(serial, status) {
+            const li = document.createElement('li');
+            li.className = 'bg-gray-700 p-3 rounded-md text-sm text-gray-200 flex justify-between items-center animated-list-item';
+            li.textContent = serial;
+            const indicator = document.createElement('span');
+            indicator.className = 'w-3 h-3 rounded-full';
+            if(status === 'found') indicator.classList.add('bg-green-500');
+            else if (status === 'not-found') indicator.classList.add('bg-red-500');
+            else indicator.classList.add('bg-yellow-500');
+            li.appendChild(indicator);
+            scanHistoryListEl.prepend(li);
+        }
+
+        function updateCounter() {
+            foundCounterEl.textContent = `${foundSet.size} / ${totalMissing}`;
+        }
+
+        function updateScannedCounter() {
+            scannedCounterEl.textContent = scanHistory.length;
+        }
+
+        function resetStatus() {
+            statusCardEl.classList.remove('found', 'not-found', 'already-found');
+            statusTitleEl.textContent = 'Verificando...';
+            statusMessageEl.textContent = '';
+        }
+        
+        document.body.addEventListener('click', () => scannedSerialEl.focus());
+        missingSerialsEl.addEventListener('input', updateMissingList);
+
+        const toastEl = document.getElementById('toast');
+        const toastMessageEl = document.getElementById('toastMessage');
+        let toastTimeout;
+        function showToast(message) {
+            clearTimeout(toastTimeout);
+            toastMessageEl.textContent = message;
+            toastEl.classList.remove('opacity-0', 'translate-y-2');
+            toastTimeout = setTimeout(() => {
+                toastEl.classList.add('opacity-0', 'translate-y-2');
+            }, 3000);
+        }
+
+        copyHistoryBtn.addEventListener('click', () => {
+            if (scanHistory.length > 0) {
+                const historyText = scanHistory.map(item => item.serial).join('\n');
+                const textArea = document.createElement("textarea");
+                textArea.value = historyText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('Histórico copiado com sucesso!');
+                } catch (err) {
+                    showToast('Erro ao copiar o histórico.');
+                }
+                document.body.removeChild(textArea);
+            } else {
+                showToast('Nenhum item no histórico para copiar.');
+            }
+        });
+
+        window.addEventListener('load', () => {
+            updateMissingList();
+            scannedSerialEl.focus();
+        });
+    </script>
+</body>
+</html>
