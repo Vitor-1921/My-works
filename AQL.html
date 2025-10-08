@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AQL Sampling</title>
+<style>
+  :root{
+    --bg:#f7f7f9; --card:#fff; --muted:#666; --accent:#d9272b;
+    --green:#2e9d5a;
+  }
+  body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+       margin:0; background:var(--bg); color:#222; padding:28px;}
+  .container{max-width:980px; margin:0 auto;}
+  h1{margin:0 0 18px; font-size:28px; color:#2b2b2b}
+  .card{background:var(--card); border-radius:12px; padding:18px; box-shadow:0 6px 18px rgba(20,20,30,0.05); margin-bottom:14px}
+  .row{display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+  input[type=number], select{padding:10px 12px; border-radius:8px; border:1px solid #e3e6ea; min-width:160px; font-size:15px;}
+  .controls{display:flex; gap:18px; align-items:center; margin-bottom:14px; flex-wrap:wrap;}
+  .block{flex:1 1 280px; min-width:240px}
+  .buttons{display:flex; gap:8px; margin-top:8px}
+  .pill{padding:10px 14px; border-radius:10px; color:#fff; font-weight:600; display:inline-block}
+  .crit{background:#d43f3f} .grave{background:#f07e43} .minor{background:#f7b656}
+  .result-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:12px}
+  .result{background:#fbfbfc; border-radius:8px; padding:12px; text-align:center; border:1px solid #efefef}
+  .big{font-size:22px; font-weight:700; color:#222}
+  .small{font-size:13px; color:var(--muted)}
+  .muted{color:var(--muted)}
+  footer{font-size:13px; color:var(--muted); margin-top:10px}
+  @media(max-width:820px){ .result-grid{grid-template-columns:1fr} .controls{flex-direction:column} }
+  .hint{font-size:13px; color:#666; margin-top:6px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AQL Sampling</h1>
+
+  <div class="card">
+    <div class="row controls">
+      <div class="block">
+        <label for="lotSize">Quantity (Batch size)</label>
+        <input id="lotSize" type="number" min="1" placeholder="Inform the batch size" value="0" />
+        <div class="hint">Type the total number of units in the batch (ex: 1500)</div>
+      </div>
+
+      <div class="block">
+        <label for="inspLevel">Inspection Level</label>
+        <select id="inspLevel">
+          <option value="I">I</option>
+          <option value="II" selected>II</option>
+          <option value="III">III</option>
+        </select>
+        <div class="hint">Choose I, II or III</div>
+      </div>
+
+      <div style="flex:0 0 200px;">
+        <label for="roundMode">Rouding</label>
+        <select id="roundMode">
+          <option value="nearest">Closest Sample (Standard)</option>
+          <option value="up">Round up</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div class="block">
+        <div class="pill crit">Critical Defects</div>
+        <div style="margin-top:10px;">
+          <label>AQL</label>
+          <select id="aql_crit">
+            <option value="not_allowed">Not Allowed</option>
+            <option value="0.065">0.065</option>
+            <option value="0.1">0.1</option>
+            <option value="0.15">0.15</option>
+            <option value="0.25">0.25</option>
+            <option value="0.4">0.40</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="pill grave">Major Defects</div>
+        <div style="margin-top:10px;">
+          <label>AQL</label>
+          <select id="aql_grave">
+            <option value="0.65"selected>0.65</option>
+            <option value="1.0">1.0</option>
+            <option value="1.5">1.5</option>
+            <option value="2.5">2.5</option>
+            <option value="4.0">4.0</option>
+            <option value="6.5">6.5</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="pill minor">Minor Defects</div>
+        <div style="margin-top:10px;">
+          <label>AQL</label>
+          <select id="aql_minor">
+            <option value="0.65">0.65</option>
+            <option value="1.0">1.0</option>
+            <option value="1.5">1.5</option>
+            <option value="2.5"selected>2.5</option>
+            <option value="4.0">4.0</option>
+            <option value="6.5">6.5</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <button id="btnCalc" style="background:#2b2b2b;color:#fff;padding:10px 14px;border-radius:8px;border:0;cursor:pointer">Calculate</button>
+      <button id="btnReset" style="background:#efefef;color:#222;padding:10px 14px;border-radius:8px;border:0;cursor:pointer;margin-left:8px">Clean</button>
+    </div>
+
+    <!-- 🔹 SOMENTE DOIS BLOCOS AQUI -->
+    <div class="result-grid" id="results" style="margin-top:16px;">
+      <div class="result card">
+        <div class="small">Letter of the samling code</div>
+        <div class="big" id="codeLetter">-</div>
+        <div class="small muted">Level: <span id="showLevel">-</span> • Batch: <span id="showLot">-</span></div>
+      </div>
+
+      <div class="result card">
+        <div class="small">Sample Size (n)</div>
+        <div class="big" id="sampleSize">-</div>
+        <div class="small muted">Based on the sampling code</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;" id="detailedResults"></div>
+
+    <footer>
+      Developed for intenal use based on the rule MIL-STD-105E / ISO 2859-1.
+    </footer>
+  </div>
+</div>
+
+<script>
+// Mesma lógica da versão anterior (tabelas resumidas)
+const mapLotToCode = [
+  {min:2, max:8, I:'A', II:'A', III:'B'},
+  {min:9, max:15, I:'A', II:'B', III:'C'},
+  {min:16, max:25, I:'B', II:'C', III:'D'},
+  {min:26, max:50, I:'C', II:'D', III:'E'},
+  {min:51, max:90, I:'C', II:'E', III:'F'},
+  {min:91, max:150, I:'D', II:'F', III:'G'},
+  {min:151, max:280, I:'E', II:'G', III:'H'},
+  {min:281, max:500, I:'F', II:'H', III:'J'},
+  {min:501, max:1200, I:'G', II:'J', III:'K'},
+  {min:1201, max:3200, I:'H', II:'K', III:'L'},
+  {min:3201, max:10000, I:'J', II:'L', III:'M'},
+  {min:10001, max:35000, I:'K', II:'M', III:'N'},
+  {min:35001, max:150000, I:'L', II:'N', III:'P'},
+  {min:150001, max:500000, I:'M', II:'P', III:'Q'},
+  {min:500001, max:Infinity, I:'N', II:'Q', III:'R'},
+];
+
+const codeToSample = {
+  A:2, B:3, C:5, D:8, E:13, F:20, G:32, H:50, J:80, K:125, L:200, M:315, N:500, P:800, Q:1250, R:2000
+};
+
+const acceptanceTable = {
+  A: {"6.5":{ac:0,re:1}},
+  B: {"4.0":{ac:0,re:1},"6.5":{ac:0,re:1}},
+  C: {"2.5":{ac:0,re:1},"4.0":{ac:0,re:1},"6.5":{ac:1,re:2}},
+  D: {"1.5":{ac:0,re:1},"2.5":{ac:0,re:1},"4.0":{ac:1,re:2},"6.5":{ac:1,re:2}},
+  E: {"1.0":{ac:0,re:1},"1.5":{ac:0,re:1},"2.5":{ac:1,re:2},"4.0":{ac:2,re:3},"6.5":{ac:2,re:3}},
+  F: {"0.65":{ac:0,re:1},"1.0":{ac:0,re:1},"1.5":{ac:1,re:2},"2.5":{ac:1,re:2},"4.0":{ac:2,re:3},"6.5":{ac:3,re:4}},
+  G: {"0.65":{ac:0,re:1},"1.0":{ac:1,re:2},"1.5":{ac:1,re:2},"2.5":{ac:2,re:3},"4.0":{ac:3,re:4},"6.5":{ac:5,re:6}},
+  H: {"0.65":{ac:0,re:1},"1.0":{ac:1,re:2},"1.5":{ac:2,re:3},"2.5":{ac:3,re:4},"4.0":{ac:5,re:6},"6.5":{ac:7,re:8}},
+  J: {"0.65":{ac:1,re:2},"1.0":{ac:2,re:3},"1.5":{ac:3,re:4},"2.5":{ac:5,re:6},"4.0":{ac:7,re:8},"6.5":{ac:10,re:11}},
+  K: {"0.65":{ac:2,re:3},"1.0":{ac:3,re:4},"1.5":{ac:5,re:6},"2.5":{ac:7,re:8},"4.0":{ac:10,re:11},"6.5":{ac:14,re:15}},
+  L: {"0.65":{ac:3,re:4},"1.0":{ac:5,re:6},"1.5":{ac:7,re:8},"2.5":{ac:10,re:11},"4.0":{ac:14,re:15},"6.5":{ac:21,re:22}},
+  M: {"0.65":{ac:4,re:5},"1.0":{ac:6,re:7},"1.5":{ac:10,re:11},"2.5":{ac:14,re:15},"4.0":{ac:21,re:22},"6.5":{ac:21,re:22}},
+  N: {"0.65":{ac:7,re:8},"1.0":{ac:10,re:11},"1.5":{ac:14,re:15},"2.5":{ac:21,re:22},"4.0":{ac:21,re:22},"6.5":{ac:21,re:22}},
+  P: {"1.0":{ac:14,re:15},"1.5":{ac:21,re:22},"2.5":{ac:21,re:22},"4.0":{ac:21,re:22},"6.5":{ac:21,re:22}},
+  Q: {"2.5":{ac:21,re:22},"4.0":{ac:21,re:22},"6.5":{ac:21,re:22}},
+  R: {"2.5":{ac:21,re:22},"4.0":{ac:21,re:22},"6.5":{ac:21,re:22}}
+};
+
+function getCodeLetter(lotSize, level){
+  if(lotSize < 2) return null;
+  for(const row of mapLotToCode){
+    if(lotSize >= row.min && lotSize <= row.max){
+      return row[level];
+    }
+  }
+  return null;
+}
+
+function getSampleSize(letter){
+  return codeToSample[letter] || null;
+}
+
+function lookupAcceptance(letter, aqlStr){
+  if(!aqlStr) return null;
+  if(aqlStr === "not_allowed") return {ac:0,re:1, note:"Not allowed (Aceitar=0)"};
+  const table = acceptanceTable[letter];
+  if(!table) return null;
+  if(table[aqlStr]) return table[aqlStr];
+  const avail = Object.keys(table).map(x=>parseFloat(x)).sort((a,b)=>a-b);
+  const target = parseFloat(aqlStr);
+  let nearest = avail.reduce((prev,curr)=> Math.abs(curr-target) < Math.abs(prev-target) ? curr : prev, avail[0]);
+  const found = table[String(nearest)];
+  return found ? Object.assign({}, found, {note:`AQL aproximado: ${nearest}`}) : null;
+}
+
+function renderDetailed(letter, sampleN, level, lotSize, aqlCrit, aqlGrave, aqlMinor){
+  const container = document.getElementById('detailedResults');
+  container.innerHTML = '';
+  const types = [
+    {title:"Critical Defects", aql:aqlCrit, color:"#d43f3f"},
+    {title:"Major Defects", aql:aqlGrave, color:"#f07e43"},
+    {title:"Minor Defects", aql:aqlMinor, color:"#f7b656"}
+  ];
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(3,1fr)';
+  grid.style.gap = '12px';
+  grid.style.marginTop = '16px';
+  types.forEach(t=>{
+    const card = document.createElement('div');
+    card.className = 'card result';
+    card.style.textAlign='left';
+    card.innerHTML = `<div style="font-weight:700;color:${t.color};margin-bottom:6px">${t.title}</div>`;
+    const ar = lookupAcceptance(letter, t.aql);
+    card.innerHTML += `<div class="small muted">AQL ${t.aql}</div>
+                       <div style="font-size:20px;font-weight:700;margin-top:4px">${ar ? ar.ac+' / '+ar.re : '-'}</div>`;
+    grid.appendChild(card);
+  });
+  container.appendChild(grid);
+}
+
+document.getElementById('btnCalc').addEventListener('click', ()=>{
+  const lotSize = Number(document.getElementById('lotSize').value);
+  const level = document.getElementById('inspLevel').value;
+  if(!lotSize || lotSize < 1){
+    alert('Inform the batch size.');
+    return;
+  }
+  const letter = getCodeLetter(lotSize, level);
+  const sampleN = getSampleSize(letter);
+  document.getElementById('codeLetter').textContent = letter || '-';
+  document.getElementById('sampleSize').textContent = sampleN || '-';
+  document.getElementById('showLevel').textContent = level;
+  document.getElementById('showLot').textContent = lotSize;
+  renderDetailed(letter, sampleN, level, lotSize,
+    document.getElementById('aql_crit').value,
+    document.getElementById('aql_grave').value,
+    document.getElementById('aql_minor').value);
+});
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  document.getElementById('lotSize').value = '';
+  document.getElementById('codeLetter').textContent = '-';
+  document.getElementById('sampleSize').textContent = '-';
+  document.getElementById('showLevel').textContent = '-';
+  document.getElementById('showLot').textContent = '-';
+  document.getElementById('detailedResults').innerHTML = '';
+});
+</script>
+</body>
+</html>
