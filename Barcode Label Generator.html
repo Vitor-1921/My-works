@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bacode Label generator - Intelbras</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        /* Estilos para a etiqueta gerada */
+        .label-container {
+            border: 2px solid black;
+            width: 1000px;
+            background-color: white;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            transform: scale(0.9); /* Reduz um pouco para caber melhor na tela */
+            transform-origin: top left;
+        }
+        .header-table { width: 100%; border-bottom: 2px solid black; }
+        .header-table td { padding: 10px; vertical-align: top; }
+        .address-cell { width: 50%; border-right: 2px solid black; }
+        .info-cell {
+            width: 50%;
+            font-size: 16px;
+            padding-top: 10px;
+            padding-left: 5px;
+            white-space: nowrap; /* Para quebras de linha no PO */
+            text-align: left; /* Alinhamento à esquerda */
+            display: flex;
+            flex-direction: column; 
+            align-items: flex-start;
+            gap: 5px;
+         }
+         .info-cell div {
+            display: inline-flex;
+            gap: 5px;
+         }
+        .content-table { width: 100%; border-collapse: collapse; }
+        .content-table th, .content-table td { border: 1px solid black; padding: 5px; text-align: center; vertical-align: middle; }
+        .content-table th { font-size: 14px; background-color: #f2f2f2; }
+        .content-table td { font-size: 12px; }
+        .description-cell { text-align: left; width: 35%; font-size: 11px; white-space: pre-wrap; /* Para quebras de linha na descrição */ word-break: break-word; }
+        .pn-cell { width: 18%; }
+        .qty-cell { width: 10%; }
+        .date-cell { width: 19%; }
+        .barcode { width: 130px; display: block; margin: 2px auto; }
+
+        /* Estilos para o formulário */
+        .card { background-color: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        input[type="text"], input[type="number"], textarea {
+             border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.75rem; width: 100%; transition: border-color 0.2s, box-shadow 0.2s;
+        }
+         input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+             outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+         }
+        .item-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; position: relative; }
+        .remove-item-btn { position: absolute; top: 8px; right: 8px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+         /* Estilos para impressão */
+         @media print {
+             body * { visibility: hidden; }
+             #labelPreview, #labelPreview * { visibility: visible; }
+             #labelPreview { position: absolute; left: 0; top: 0; width: auto; border: none; margin: 0; padding: 0; transform: scale(1); }
+             button, .form-section { display: none !important; } /* Esconde formulário e botões */
+             header { display: none; }
+             .preview-title { display: none; }
+             body { background-color: white; }
+         }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Barcode Label Generator</h1>
+            <p class="text-md sm:text-lg text-gray-600 mt-2">Preencha os dados abaixo para gerar a etiqueta com códigos de barras.</p>
+        </header>
+
+        <!-- Formulário de Entrada -->
+        <div class="card p-6 sm:p-8 mb-8 form-section">
+            <!-- Informações do Cabeçalho -->
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                 <div>
+                    <label for="poNumber" class="block text-sm font-medium text-gray-700 mb-1">PO Number</label>
+                    <textarea id="poNumber" rows="2" class="p-3" placeholder="Fill the PO numbers here, you can add more than one PO. Example: 450xxx + 450xxx"></textarea>
+                </div>
+                 <div>
+                    <label for="palletNumber" class="block text-sm font-medium text-gray-700 mb-1">Pallet Number (optional)</label>
+                    <input type="text" id="palletNumber" class="p-3" placeholder="Ex: 01 of 10">
+                </div>
+            </div>
+
+             <!-- Itens da Etiqueta -->
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Items of the label</h2>
+            <div id="itemsContainer">
+                <!-- O primeiro item é adicionado por padrão -->
+                 <div class="item-card">
+                    <h3 class="font-semibold mb-3 text-gray-600">Item 1</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Intelbras PN</label>
+                            <input type="text" class="item-intelbrasPN p-3" placeholder="Ex: 1891177">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Supplier PN</label>
+                            <input type="text" class="item-supplierPN p-3" placeholder="Supplier Code">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" min="1" class="item-quantity p-3" placeholder="Ex: 50">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Data Code</label>
+                            <input type="text" class="item-dateCode p-3" placeholder="Ex: 21082025">
+                        </div>
+                        <div class="md:col-span-2 lg:col-span-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea rows="3" class="item-description p-3" placeholder="Description of the item"></textarea>
+                        </div>
+                    </div>
+                 </div>
+            </div>
+
+            <button id="addItemBtn" class="mt-4 bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors">
+                 <i class="fas fa-plus mr-2"></i>Add Item
+            </button>
+
+            <div class="mt-8 flex flex-col sm:flex-row gap-4">
+                 <button id="generateBtn" class="flex-1 bg-blue-600 text-white font-semibold py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                    <i class="fas fa-cogs mr-2"></i>Generate the <Label></Label>
+                </button>
+                 <button id="printBtn" class="flex-1 bg-green-600 text-white font-semibold py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors hidden">
+                    <i class="fas fa-print mr-2"></i>Print the Label
+                </button>
+            </div>
+        </div>
+
+        <!-- Área de Pré-visualização da Etiqueta -->
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4 text-center preview-title">Preview</h2>
+        <div id="labelPreview" class="flex justify-center overflow-x-auto">
+            <div class="text-center text-gray-500 italic">Fill the datas below to generate the label with the barcodes.</div>
+        </div>
+    </div>
+
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const printBtn = document.getElementById('printBtn');
+        const labelPreview = document.getElementById('labelPreview');
+        const itemsContainer = document.getElementById('itemsContainer');
+        const addItemBtn = document.getElementById('addItemBtn');
+        const poNumberEl = document.getElementById('poNumber');
+        const palletNumberEl = document.getElementById('palletNumber');
+
+        let itemCount = 1;
+
+        // Função para criar o HTML de um novo item
+        function createItemCard(itemNumber) {
+            const card = document.createElement('div');
+            card.className = 'item-card';
+            card.innerHTML = `
+                <button class="remove-item-btn" title="Remover Item ${itemNumber}">&times;</button>
+                <h3 class="font-semibold mb-3 text-gray-600">Item ${itemNumber}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Intelbras PN</label>
+                        <input type="text" class="item-intelbrasPN p-3" placeholder="Ex: 1891557">
+                    </div>
+                     <div>
+                         <label class="block text-sm font-medium text-gray-700 mb-1">Supplier PN</label>
+                         <input type="text" class="item-supplierPN p-3" placeholder="Supplier Code">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+                        <input type="number" min="1" class="item-quantity p-3" placeholder="Ex: 50">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Data Code</label>
+                        <input type="text" class="item-dateCode p-3" placeholder="Ex: 21082025">
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                        <textarea rows="3" class="item-description p-3" placeholder="Description of the item."></textarea>
+                    </div>
+                </div>
+            `;
+            // Adiciona funcionalidade ao botão de remover
+            card.querySelector('.remove-item-btn').addEventListener('click', () => {
+                card.remove();
+                // Renumera os itens restantes (opcional, mais para visualização)
+                const remainingCards = itemsContainer.querySelectorAll('.item-card');
+                remainingCards.forEach((c, index) => {
+                    c.querySelector('h3').textContent = `Item ${index + 1}`;
+                    c.querySelector('.remove-item-btn').title = `Remover Item ${index + 1}`;
+                });
+                itemCount = remainingCards.length; // Atualiza contador global
+                 if (itemCount === 0) { // Se não houver mais itens, adiciona um novo automaticamente
+                    addItemCard();
+                }
+            });
+            return card;
+        }
+
+         // Função para adicionar um novo card de item
+        function addItemCard() {
+             itemCount++;
+             const newItemCard = createItemCard(itemCount);
+             itemsContainer.appendChild(newItemCard);
+        }
+
+        // Adiciona evento ao botão "Adicionar Item"
+        addItemBtn.addEventListener('click', addItemCard);
+
+
+        generateBtn.addEventListener('click', () => {
+            const poNumberRaw = poNumberEl.value.trim(); // Pega o texto como está
+            // Substitui quebras de linha por um espaço simples para exibição ao lado do label
+            const poNumberFormatted = poNumberRaw.replace(/\n/g, ' '); 
+            const palletNumber = palletNumberEl.value.trim() || '__________________'; // Usa placeholder se vazio
+
+            const items = [];
+            const itemCards = itemsContainer.querySelectorAll('.item-card');
+            let allValid = true;
+
+            itemCards.forEach((card, index) => {
+                const item = {
+                    description: card.querySelector('.item-description').value.trim(),
+                    intelbrasPN: card.querySelector('.item-intelbrasPN').value.trim(),
+                    supplierPN: card.querySelector('.item-supplierPN').value.trim(),
+                    quantity: card.querySelector('.item-quantity').value.trim(),
+                    dateCode: card.querySelector('.item-dateCode').value.trim(),
+                };
+
+                // Validação simples
+                if (!item.description || !item.intelbrasPN || !item.supplierPN || !item.quantity || !item.dateCode) {
+                    allValid = false;
+                    alert(`Por favor, preencha todos os campos do Item ${index + 1}.`);
+                }
+                items.push(item);
+            });
+
+            if (!poNumberRaw) { // Valida se o campo PO original foi preenchido
+                 alert('Por favor, preencha o número do PO.');
+                 allValid = false;
+            }
+
+            if (!allValid || items.length === 0) {
+                 if (items.length === 0) alert('Adicione pelo menos um item à etiqueta.');
+                 return; // Para a execução se houver erro
+            }
+
+            // --- Geração da Etiqueta ---
+            labelPreview.innerHTML = ''; // Limpa preview
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'label-container';
+
+            // Monta o HTML do cabeçalho com PO ao lado
+            labelContainer.innerHTML = `
+                <table class="header-table">
+                    <tr>
+                        <td class="address-cell">
+                            <strong style="font-size: 18px;">INTELBRAS S.A.</strong><br>
+                            Sao Jose/SC - ROD.SC 281,KM 4,5<br>
+                            Sertao do Maruim<br>
+                            Zip Code: 88122-001<br>
+                            CNPJ 82.901.000/0014-41
+                        </td>
+                        <td class="info-cell">
+                            <strong>Pallet:</strong> ${palletNumber}</div>
+                            <strong>PO No.:</strong> ${poNumberFormatted}</div>
+                        </td>
+                    </tr>
+                </table>
+            `;
+
+            // Monta a tabela de conteúdo
+            const contentTable = document.createElement('table');
+            contentTable.className = 'content-table';
+            contentTable.innerHTML = `
+                <thead>
+                    <tr>
+                        <th class="description-cell">Description</th>
+                        <th class="pn-cell">Intelbras_PN</th>
+                        <th class="pn-cell">Supplier_PN</th>
+                        <th class="qty-cell">Quantity</th>
+                        <th class="date-cell">DateCode</th>
+                    </tr>
+                </thead>
+            `;
+            const tbody = document.createElement('tbody');
+
+            // Adiciona cada item como uma linha na tabela
+            items.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="description-cell">${item.description.replace(/\n/g, '<br>')}</td>
+                    <td class="pn-cell">
+                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.intelbrasPN)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
+
+                    </td>
+                     <td class="pn-cell">
+                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.supplierPN)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
+                    
+                    </td>
+                    <td class="qty-cell">
+                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.quantity)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
+                        
+                    </td>
+                    <td class="date-cell">
+                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.dateCode)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
+                        
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            contentTable.appendChild(tbody);
+            labelContainer.appendChild(contentTable);
+
+            // Exibe a etiqueta gerada
+            labelPreview.appendChild(labelContainer);
+            printBtn.classList.remove('hidden'); // Mostra o botão de imprimir
+        });
+
+        printBtn.addEventListener('click', () => {
+            window.print();
+        });
+
+        // Garante foco no primeiro campo ao carregar
+         window.addEventListener('load', () => {
+             poNumberEl.focus();
+         });
+
+    </script>
+</body>
+</html>
+
