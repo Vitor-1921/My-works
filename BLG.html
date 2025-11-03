@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bacode Label generator - Intelbras</title>
+    <title>Barcode Label generator - Intelbras</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- ADICIONADO: Biblioteca de Código de Barras (funciona na China) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -38,8 +40,8 @@
             gap: 5px;
          }
          .info-cell div {
-            display: inline-flex;
-            gap: 5px;
+           display: inline-flex;
+           gap: 5px;
          }
         .content-table { width: 100%; border-collapse: collapse; }
         .content-table th, .content-table td { border: 1px solid black; padding: 5px; text-align: center; vertical-align: middle; }
@@ -220,7 +222,6 @@
 
         generateBtn.addEventListener('click', () => {
             const poNumberRaw = poNumberEl.value.trim(); // Pega o texto como está
-            // Substitui quebras de linha por um espaço simples para exibição ao lado do label
             const poNumberFormatted = poNumberRaw.replace(/\n/g, ' '); 
             const palletNumber = palletNumberEl.value.trim() || '__________________'; // Usa placeholder se vazio
 
@@ -272,8 +273,8 @@
                             CNPJ 82.901.000/0014-41
                         </td>
                         <td class="info-cell">
-                            <strong>Pallet:</strong> ${palletNumber}</div>
-                            <strong>PO No.:</strong> ${poNumberFormatted}</div>
+                            <div><strong>Pallet:</strong> ${palletNumber}</div>
+                            <div><strong>PO No.:</strong> ${poNumberFormatted}</div>
                         </td>
                     </tr>
                 </table>
@@ -296,25 +297,27 @@
             const tbody = document.createElement('tbody');
 
             // Adiciona cada item como uma linha na tabela
-            items.forEach(item => {
+            items.forEach((item, index) => {
                 const row = document.createElement('tr');
+                
+                // ALTERAÇÃO: Troca <img> por <svg> e adiciona IDs únicos
                 row.innerHTML = `
                     <td class="description-cell">${item.description.replace(/\n/g, '<br>')}</td>
                     <td class="pn-cell">
-                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.intelbrasPN)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
-
+                        <svg id="barcode-pn-${index}" class="barcode"></svg><br>
+                        ${item.intelbrasPN}
                     </td>
                      <td class="pn-cell">
-                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.supplierPN)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
-                    
+                        <svg id="barcode-sup-${index}" class="barcode"></svg><br>
+                        ${item.supplierPN}
                     </td>
                     <td class="qty-cell">
-                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.quantity)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
-                        
+                        <svg id="barcode-qty-${index}" class="barcode"></svg><br>
+                        ${item.quantity}
                     </td>
                     <td class="date-cell">
-                        <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(item.dateCode)}&code=Code128&dpi=96" alt="Barcode" class="barcode"><br>
-                        
+                        <svg id="barcode-date-${index}" class="barcode"></svg><br>
+                        ${item.dateCode}
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -325,6 +328,25 @@
 
             // Exibe a etiqueta gerada
             labelPreview.appendChild(labelContainer);
+
+            // ---- INÍCIO DA NOVA LÓGICA DE BARCODE ----
+            // Agora que a etiqueta está na tela, renderiza os códigos de barras localmente
+            items.forEach((item, index) => {
+                try {
+                    const options = { format: "CODE128", displayValue: false, width: 1.5, height: 40, margin: 5 };
+                    if (item.intelbrasPN) JsBarcode(`#barcode-pn-${index}`, item.intelbrasPN, options);
+                    if (item.supplierPN) JsBarcode(`#barcode-sup-${index}`, item.supplierPN, options);
+                    if (item.quantity) JsBarcode(`#barcode-qty-${index}`, item.quantity, options);
+                    if (item.dateCode) JsBarcode(`#barcode-date-${index}`, item.dateCode, options);
+                } catch (e) {
+                    console.error(`Erro ao gerar código de barras para o item ${index}: ${e}`);
+                    // Informa o erro visualmente na etiqueta
+                    const errorCell = document.getElementById(`barcode-pn-${index}`);
+                    if(errorCell) errorCell.outerHTML = `<span style="color:red; font-size:10px;">Erro</span>`;
+                }
+            });
+            // ---- FIM DA NOVA LÓGICA ----
+
             printBtn.classList.remove('hidden'); // Mostra o botão de imprimir
         });
 
@@ -340,5 +362,4 @@
     </script>
 </body>
 </html>
-
 
